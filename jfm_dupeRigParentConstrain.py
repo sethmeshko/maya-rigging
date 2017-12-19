@@ -1,5 +1,12 @@
-
 #jfm_dupeRigParentConstrain
+#Created by: Seth Meshko, 3danimationartist.com
+#12/17/17
+
+#This script opens a gui window that will allow you to select a skeleton then with a button push automatically 
+#duplicates your skinned rig, renames each joint, removes all shapes, transforms and effectors and 
+#creates the parent constraints for each joint and establishes a common control to turn the parent 
+#constraint network on and off with a single attribute on the skin rig root.
+
 import maya.cmds as cmds
 import functools
 
