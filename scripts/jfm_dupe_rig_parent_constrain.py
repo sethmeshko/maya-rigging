@@ -1,6 +1,7 @@
 #jfm_dupe_rig_parent_constrain
 #Created by: Seth Meshko, 3danimationartist.com
 #12/17/17
+#Revised 02/23/18
 
 '''
 This script opens a gui window that will allow you to select a skeleton then with a button push automatically 
@@ -134,21 +135,28 @@ def dupeRig(dupeRig, pNameSearchField, pNameReplaceField):
 		print('dupeRig(), the parentConstrainedRigList[i] is: ' + str(parentConstrainedRigList[i]))
 		print('dupeRig(), the targetRigList[i] is: ' + str(targetRigList[i]))
 		newParentConstraint = cmds.parentConstraint(targetRigList[i], parentConstrainedRigList[i])
+		newScaleConstraint = cmds.scaleConstraint(targetRigList[i], parentConstrainedRigList[i])
 		reps = {'|':''}
 		targetRigString = renameObject(targetRigList[i], reps)
+		#The following lines connect each parent and scale constraint to an attribute on the root joint that will dictate if the constraints have any effect
 		cmds.connectAttr(str(parentConstrainedRigList[0])  + '.RigFollow', newParentConstraint[0].encode('utf8') + '.' + targetRigString + 'W0', force = True)
+		cmds.connectAttr(str(parentConstrainedRigList[0])  + '.RigFollow', newScaleConstraint[0].encode('utf8') + '.' + targetRigString + 'W0', force = True)		
 		i=i+1
 	
 		
 	#This is all cleanup for the rig skeleton.  It's just deleting all of the unused artifacts from the skin joint skeleton
-	shapeSelection = cmds.listRelatives(globalTargetRig, allDescendents = True, type = 'shape' ) #creating a list to select any unwanted shapes in the hierarchy
-	#The reason why this is done as a loop is because if the throws an error you will know which shape to deal with
-	for eachObject in shapeSelection:
-		shapeTransform = cmds.listRelatives(eachObject, type = 'transform', parent = True ); #selecting the transforms of the shape nodes
-		cmds.delete(shapeTransform)
-
-	typeToPrune = 'transform'
-	deleteFilteredObjects(globalTargetRig, typeToPrune)
+	keepShapes = cmds.checkBox(keepShapesCheckBox, editable = True, query = True, value = True)
+	
+	if keepShapes == False:
+		print('dupeRig(), keep shapes is false')
+		shapeSelection = cmds.listRelatives(globalTargetRig, allDescendents = True, type = 'shape' ) #creating a list to select any unwanted shapes in the hierarchy
+		#The reason why this is done as a loop is because if it throws an error you will know which shape to deal with
+		for eachObject in shapeSelection:
+			shapeTransform = cmds.listRelatives(eachObject, type = 'transform', parent = True ); #selecting the transforms of the shape nodes
+			cmds.delete(shapeTransform)
+		typeToPrune = 'transform'
+		deleteFilteredObjects(globalTargetRig, typeToPrune)
+	
 	typeToPrune = 'ikEffector'
 	deleteFilteredObjects(globalTargetRig, typeToPrune)
 
@@ -195,6 +203,14 @@ nameReplaceField = cmds.textField(text='TARGET')
 #New Row
 
 cmds.separator (h=10, style='none')
+cmds.separator (h=10, style='none')
+cmds.separator (h=10, style='none')
+cmds.separator (h=10, style='none')
+cmds.separator (h=10, style='none')
+
+#New Row
+
+keepShapesCheckBox = cmds.checkBox(label = 'Keep Shapes', editable = True)
 cmds.separator (h=10, style='none')
 cmds.separator (h=10, style='none')
 cmds.separator (h=10, style='none')
