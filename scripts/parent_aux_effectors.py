@@ -5,10 +5,31 @@
 import maya.cmds as cmds
 
 selectionList = cmds.ls( selection=True ) #create a list of object from your current selection
-storedSelectionList = selectionList
+effectorObject= selectionList[0]
+controlObject = selectionList[1]
 
-null=cmds.group(empty=True)
-nullName = cmds.rename(null, selectionList[0] + 'Null')  #appends the name of the object with "Null"
-print (nullName)
-cmds.parent(selectionList,nullName)
-cmds.parent(storedSlectionList[1],nullName)
+if cmds.objExists('AUX_FullBodyIKControl'):
+	fullBodyIkControl = 'AUX_FullBodyIKControl'
+	print(str(fullBodyIkControl) + ' found')
+else:
+	print('AUX_FullBodyIKControl not found,  There must be an object named exactly AUX_FullBodyIKControl in the scene')
+
+if cmds.objExists(controlObject + '.hasEffect'):
+	print('has effect found, deleting')
+	cmds.deleteAttr(controlObject + '.hasEffect')
+
+cmds.addAttr(controlObject, longName = 'hasEffect', attributeType = 'float' , minValue = 0, maxValue = 1, defaultValue = 1, keyable = True)
+
+newHasEffectMultDivNode = cmds.shadingNode('multiplyDivide', asUtility = True, name = controlObject + 'HasEffectMultDivNode')
+cmds.connectAttr(fullBodyIkControl + '.AUX_Follow', newHasEffectMultDivNode + '.input1X',  force = True)
+cmds.connectAttr(controlObject + '.hasEffect', newHasEffectMultDivNode + '.input2X',  force = True)
+
+cmds.connectAttr(newHasEffectMultDivNode + '.outputX', effectorObject + '.reachRotation', force = True)
+cmds.connectAttr(newHasEffectMultDivNode + '.outputX', effectorObject + '.reachTranslation', force = True)
+
+cmds.connectAttr(fullBodyIkControl + '.AUX_IK_Visibility', effectorObject + '.visibility')  
+
+null = cmds.group(empty=True)
+null = cmds.rename(null, effectorObject + 'Null')  #appends the name of the object with "Null"
+cmds.parent(null, controlObject)
+cmds.parent(effectorObject, null)
