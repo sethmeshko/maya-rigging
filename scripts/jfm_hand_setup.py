@@ -1,8 +1,10 @@
 #jfm_hand_setup 
 #Released 12/11/2017
-#Updated 12/30/2017
+#Updated 02/28/2018
 #Created by Seth Meshko, Digital Artist, www.3danimationartist.com
 #Creates a window that automates a number of tasks for rigging a humanoid character hand
+#Requires objects from a folder called assets that must reside in the mydocs maya folder, download and copy that file.  It's available
+#in the github directory
 import maya.cmds as cmds
 
 globalDuplicatedHandList = [] #This is a variable that will be used to store the joint hierarchies of the duplicated hands 
@@ -241,7 +243,7 @@ def setupControlNodes(jointList, controlList):
 		fingerJoints.append(firstKnuckle)
 		i = i+1
 		
-		ia = 1
+		ia = 3
 		for eachJoint in fingerJoints:
 
 			newCurlMultDivNode = cmds.shadingNode('multiplyDivide', asUtility = True)
@@ -257,6 +259,7 @@ def setupControlNodes(jointList, controlList):
 			cmds.connectAttr(newCurlPlusMinusAverageNode + '.output1D', newCurlMultDivNode + '.input1X',  force = True)
 			
 			cmds.connectAttr(eachControl + '.CurlMultiplyerJoint' + str(ia), newCurlMultDivNode + '.input2X', force = True )
+			ia = ia -1 
 
 def parentControlShape(controlShape, controlJointRoot):
 	hierarchyList = cmds.listRelatives(controlJointRoot, allDescendents=True, type='joint')
@@ -359,8 +362,8 @@ def parentConstrainHierarchy(targetJointsList, controlledJoints):
 					unpackedTargetList = targetJointKnuckleList[0][ia], targetJointKnuckleList[1][ia]
 					print('parentConstrainHierarchy(), the unpackedTargetList is: ' + str(unpackedTargetList))
 					parentConstraint = cmds.parentConstraint(unpackedTargetList, parentedJointKnuckleList[ia])
-					cmds.connectAttr(str(globalControlBoxShape) + '.FKRigFollow', parentConstraint[0].encode('utf8') + '.' + targetJointKnuckleList[0][ia] + 'W0')
-					cmds.connectAttr(str(globalControlBoxShape) + '.IKRigFollow', parentConstraint[0].encode('utf8') + '.' + targetJointKnuckleList[1][ia] + 'W1')
+					cmds.connectAttr(str(globalControlBoxShape) + '.fkRigFollow', parentConstraint[0].encode('utf8') + '.' + targetJointKnuckleList[0][ia] + 'W0')
+					cmds.connectAttr(str(globalControlBoxShape) + '.ikRigFollow', parentConstraint[0].encode('utf8') + '.' + targetJointKnuckleList[1][ia] + 'W1')
 					ia = ia+1
 			i = i+1
 
@@ -391,7 +394,7 @@ def parentConstrainHierarchy(targetJointsList, controlledJoints):
 			for eachJoint in parentedJointKnuckleList:#at this point parentedJointHierarchyList is a dynamic list of the finger joints to be parent constrained
 				if ia < len(parentedJointKnuckleList):
 					parentConstraint = cmds.parentConstraint(targetJointKnuckleList[ia], parentedJointKnuckleList[ia])
-					cmds.connectAttr(str(globalControlBoxShape) + '.SkinJointsFollowRig', parentConstraint[0].encode('utf8') + '.' + targetJointKnuckleList[ia] + 'W0')
+					cmds.connectAttr(str(globalControlBoxShape) + '.targetRigFollow', parentConstraint[0].encode('utf8') + '.' + targetJointKnuckleList[ia] + 'W0')
 					ia = ia+1
 			i = i+1
 
@@ -405,10 +408,8 @@ def createIkHandles(jointRoot):
 	snapToObj(jointRoot, ikControlGroup)#snapping and freezing transforms for the group
 
 	parentConstraint = cmds.parentConstraint(globalDuplicatedHandList[4], ikControlGroup)
-	cmds.connectAttr(str(globalControlBoxShape) + '.IK_FingerControlFollow', parentConstraint[0].encode('utf8') + '.' + str(globalDuplicatedHandList[4]) + 'W0')
 
 	masterIKControlShape = cmds.duplicate('jfm_transformControl', name = globalSideOfBody + '_Master_IK_Finger_Control')
-	print('creatIKHandles(), the MasterIKControlShape is: ' + str(masterIKControlShape))
 	cmds.parent(masterIKControlShape, ikControlGroup)
 	snapToObj(globalDuplicatedHandList[4], masterIKControlShape)
 	if globalSideOfBody == 'Left':
@@ -416,8 +417,9 @@ def createIkHandles(jointRoot):
 	if globalSideOfBody == 'Right':
 		transformValues = [[-5,0,0], [0,0,0], [2,2,2]]
 	transformObjects(masterIKControlShape, transformValues)
-	cmds.connectAttr(globalControlBoxShape + '.IKRig_Visibility', masterIKControlShape[0] +  '.visibility', force = True )
-	#cmds.connectAttr(newCurlPlusMinusAverageNode + '.output1D', newCurlMultDivNode + '.input1X',  force = True)
+	cmds.connectAttr(globalControlBoxShape + '.ikRigVisibility', masterIKControlShape[0] +  '.visibility', force = True )
+	cmds.addAttr(masterIKControlShape[0], longName = 'rigFollow', attributeType = 'float', minValue = 0, maxValue = 1, defaultValue = 1, keyable = True)
+	cmds.connectAttr(str(masterIKControlShape[0]) + '.rigFollow', parentConstraint[0].encode('utf8') + '.' + str(globalDuplicatedHandList[4]) + 'W0')
 	
 
 	fingerRootIndex = 0
@@ -450,15 +452,82 @@ def createConnections(controlledObjectRoot, controlledAttribute, controllingObje
 	for eachJoint in jointList:
 		cmds.connectAttr(controllingObject + controllingAttribute, eachJoint + controlledAttribute,)
 
+def setHandJointLimits(handJointRoot, maintainOffsets):
+	#this block sets transform limits on the fingers of the hand
+	print('main(), the selectedJoint is: ' + str(handJointRoot))
+	reorderFingers(handJointRoot)
+	fingerList = cmds.listRelatives(handJointRoot, children = True, type = 'joint')
+	print('the fingerList is: ' + str(fingerList))
+	thumbKnuckleList = cmds.listRelatives(fingerList[0], allDescendents = True, type = 'joint')
+	thumbKnuckleList.append(fingerList[0])
+	fingerList.pop(0)
+	print('thumbKnuckleList is: ' + str(thumbKnuckleList))
+	applyLimits([thumbKnuckleList[2]], maintainOffsets, [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [0, 0, -22.5, 22.5, -65, 35], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1] )
+	applyLimits([thumbKnuckleList[1]], maintainOffsets, [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, -90, 45], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1] )
+	applyLimits([thumbKnuckleList[0]], maintainOffsets, [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, -90, 45], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1] )
+	for eachFinger in fingerList:
+		knuckleList = cmds.listRelatives(eachFinger, allDescendents = True, type = 'joint')
+		knuckleList.append(eachFinger)
+		for eachKnuckle in knuckleList:
+			applyLimits([eachKnuckle], maintainOffsets, [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [0,0, -22.5,22.5,  -100,35], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1] )
+		
+#The form for calling this script will look like:
+#applyLimits(listOrObjectToPass, False, [1, 1, 1, 1, 1, 1], [-1.5, 1.5, -1.5, 1.5, -1.5, 1.5], [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1])
+#note that if you are passing a single item into the function you will need to bundle the item into a list:
+#applyLimits([listOrObjectToPass], False, [1, 1, 1, 1, 1, 1], [-1.5, 1.5, -1.5, 1.5, -1.5, 1.5], [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1])
+#listOrObjectToPass is either a single object or a list that you want to setup limits on
+#maintainTranslationOffsets is a bool that tells the function whether it should read the existing translation values and lock them into place (used primarily for joints)
+#translateLimits are essentially bools (0 or 1) that tells whether upper or lower limits for each transform channel (xyz) should be imposed or not
+#translateValues are the upper and lower max limits for the translate x,y and z channels
+#rotateLimits are essentially bools (0 or 1) that tells whether upper or lower limits for each rotation channel (xyz) should be imposed or not
+#rotateValues are the upper and lower max limits for the rotate x,y and z channels
+#scaleLimits are essentially bools (0 or 1) that tells whether upper or lower limits for each scale channel (xyz) should be imposed or not
+#scaleValues are the upper and lower max limits for the scale x,y and z channels
+def applyLimits(objectListForLimits, maintainTranslationOffsets, transformLimits, translateValues, rotateLimits, rotateValues, scaleLimits, scaleValues):
+	print('applyLimits(), the objectListForLimits is : ' + str(objectListForLimits))
+
+	i = 0
+	for eachObject in objectListForLimits:	
+		transformPosition = cmds.xform(eachObject, query = True, translation = True)
+		print('applyLimits(), the transformPositionValues for ' + str(eachObject) + ' are: ' + str(transformPosition))
+		print('applyLimits(), maintainTranslationOffsets for ' + str(eachObject) + ' is: ' + str(maintainTranslationOffsets))
+		if maintainTranslationOffsets == True and transformLimits[0] == 1 and transformLimits[1] == 1:
+			print('applyLimits(), the max and min translation value for ' + str(eachObject) + ' is: ' + str(transformPosition[0]))
+			translateValues[0] = transformPosition[0]
+			translateValues[1] = transformPosition[0]
+		if maintainTranslationOffsets == True and transformLimits[2] == 1 and transformLimits[3] == 1:
+			print('applyLimits(), the max and min translation value for ' + str(eachObject) + ' is: ' + str(transformPosition[1]))
+			translateValues[2] = transformPosition[1]
+			translateValues[3] = transformPosition[1]
+		if maintainTranslationOffsets == True and transformLimits[4] == 1 and transformLimits[5] == 1:
+			print('applyLimits(), the max and min translation value for ' + str(eachObject) + ' is: ' + str(transformPosition[2]))
+			translateValues[4] = transformPosition[2]
+			translateValues[5] = transformPosition[2]
+
+		cmds.transformLimits(eachObject, enableTranslationX = [transformLimits[0], transformLimits[1]], tx =(translateValues[0], translateValues[1]))
+		cmds.transformLimits(eachObject, enableTranslationY = [transformLimits[2], transformLimits[3]], ty=(translateValues[2], translateValues[3]))
+		cmds.transformLimits(eachObject, enableTranslationZ = [transformLimits[4], transformLimits[5]], tz=(translateValues[4], translateValues[5]))
+
+		cmds.transformLimits(eachObject, enableRotationX = [rotateLimits[0], rotateLimits[1]], rx =(rotateValues[0], rotateValues[1]))
+		cmds.transformLimits(eachObject, enableRotationY = [rotateLimits[2], rotateLimits[3]], ry=(rotateValues[2], rotateValues[3]))
+		cmds.transformLimits(eachObject, enableRotationZ = [rotateLimits[4], rotateLimits[5]], rz=(rotateValues[4], rotateValues[5]))
+
+		cmds.transformLimits(eachObject, enableScaleX = [scaleLimits[0], scaleLimits[1]], sx =(scaleValues[0], scaleValues[1]))
+		cmds.transformLimits(eachObject, enableScaleY = [scaleLimits[2], scaleLimits[3]], sy=(scaleValues[2], scaleValues[3]))
+		cmds.transformLimits(eachObject, enableScaleZ = [scaleLimits[4], scaleLimits[5]], sz=(scaleValues[4], scaleValues[5]))
+		i = i + 1
+
 #start of main function
 selectedJoint = cmds.ls(selection = True)
 
+#this block checks to see if a target rig already exists for the hand and removes the finger joints, retaining the root for orienting the hand rigs
 extantHandRigList = []
-if cmds.objExists('TARGET_Lft_Hand'):
-	extantHandRigList.append('TARGET_Lft_Hand')
-if cmds.objExists('TARGET_Rt_Hand'):
-	extantHandRigList.append('TARGET_Rt_Hand')
-if len(extantHandRigList) > 0: 
+if cmds.objExists('TARGET_Lft_HandRoot'):
+	extantHandRigList.append('TARGET_Lft_HandRoot')
+if cmds.objExists('TARGET_Rt_HandRoot'):
+	extantHandRigList.append('TARGET_Rt_HandRoot')
+if len(extantHandRigList) > 0:
+	print('main(), a TARGET rig was found')
 	for eachObject in extantHandRigList:
 		print('duplicateJoints(), the extantHandRigList: ' + str(extantHandRigList))
 		deleteFingerList = cmds.listRelatives(eachObject)
@@ -466,12 +535,24 @@ if len(extantHandRigList) > 0:
 		sideOfBody = detectSideOfBody(eachObject)	
 		targetJoint = cmds.rename(eachObject, 'TARGET_' + str(sideOfBody) + '_Wrist')
 		print('duplicateJoints(), the targetJoint is: ' + str(targetJoint))
+
+	#the following block detects if there is an existing parent constraint attribute for each joint and if so removes that attr 
+	selectedJointChildList = cmds.listRelatives(selectedJoint, allDescendents = True, type = 'joint')
+	for eachJoint in selectedJointChildList:
+		selectedShape = cmds.listRelatives(eachJoint, type = 'parentConstraint')
+		attributeList = cmds.listAttr(selectedShape)
+		print(attributeList)
+		for eachAttribute in attributeList:
+				if 'TARGET' in eachAttribute:
+					print('found ' + eachAttribute)
+					print('The attribute to delete is: ' + str(selectedShape) + '.' + eachAttribute)
+					cmds.deleteAttr(str(selectedShape) + '.' + eachAttribute)
+
 if selectedJoint == 'SKIN_Left_HandRoot':
 	parentConstrainHierarchy('TARGET_Lft_Wrist', [selectedJoint])
 if selectedJoint == 'SKIN_Left_HandRoot':
 	parentConstrainHierarchy('TARGET_Rt_Wrist', [selectedJoint])
 
-print('main(), the selectedJoint is: ' + str(selectedJoint))
 duplicateJoints(selectedJoint)
 
 #assigning all of the root joints to specific variables (this is really more about being explicative than anything)
@@ -501,40 +582,47 @@ if globalSideOfBody == 'Right':
 	loadedControlShape = cmds.rename('jfm_rightHandControlBox', globalSideOfBody + '_' + 'Hand_Control_Box')
 	cmds.addAttr(loadedControlShape, longName = 'IK_Blend', attributeType = 'float', minValue = 0, maxValue = 0, defaultValue = 0, keyable = True)
 
-
 globalControlBoxShape = loadedControlShape
 
-transformSettings = [[0, 0, 0], [0,0,0], [1,1,1]] #this object will be unchanged so it's transform settings are the default
+transformSettings = [[0, 0, 0], [0, 0, 0], [1, 1, 1]] #this object will be unchanged so it's transform settings are the default
 snapToObj(drivenRootJoint, loadedControlShape)#calling a function that centers and zeros transforms for the hand controller shape
 
 #create a list of the controls contained in the HandControlBox
 fingerControlList = cmds.listRelatives(loadedControlShape, children = True, type = 'transform')
-#print('the fingerControlList is: ' + str(fingerControlList))
-
 #create a list of the joints, reorderJoints() makes sure that the joints are in the same order as the controls
 firstKnuckleList = cmds.listRelatives(drivenRootJoint, children = True)
-
 setupControlNodes(firstKnuckleList, fingerControlList)
+applyLimits(fingerControlList, False, [1, 1, 1, 1, 1, 1], [-1.5, 1.5, -1.5, 1.5, -1.5, 1.5], [1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1])
 
 targetJointsList = [controlRootJoint, ikRootJoint]		
 parentConstrainHierarchy(targetJointsList, rigRootJoint)
 parentConstrainHierarchy([rigRootJoint], [skinRootJoint])
 
+#this block creates all of the fk control shapes and places them in the hierarchy for the control joints
 pathToFile = '%s/%s' % (scriptsUserDirectory.rsplit('/', 3)[0], 'assets/jfm_fkKnuckleControl.mb')#regroving that path to go to the assets file
 loadedControlShape = cmds.file(pathToFile, i = True)
 controlShape = 'jfm_fkKnuckleControl'
 if globalSideOfBody == 'Right':
 	cmds.scale( 1, -1, 1, controlShape )
 	cmds.makeIdentity(controlShape, apply = True, translate = True, rotate = True, scale = True)
-parentControlShape(controlShape, controlRootJoint)
+parentControlShape(controlShape, controlRootJoint)#this function unpacks the hand and distributes the control shapes over each joint
 cmds.delete(controlShape)
 
+#this block sets up limits on all of the joints controlling for movements in the hand that should not happen or will "break" the rig
+setHandJointLimits(controlRootJoint, False)
+setHandJointLimits(drivenRootJoint, True)
+ 
 parentControlJoints_DrivenJoints(drivenRootJoint, controlRootJoint) 
+
+setHandJointLimits(skinRootJoint, True)
+setHandJointLimits(rigRootJoint, True)
+setHandJointLimits(ikRootJoint, True)
 
 createIkHandles(ikRootJoint)
 
-createConnections(drivenRootJoint, '.visibility', globalControlBoxShape, '.FKRig_Visibility')
-createConnections(ikRootJoint, '.visibility', globalControlBoxShape, '.IKRig_Visibility')
+createConnections(drivenRootJoint, '.visibility', globalControlBoxShape, '.fkRigVisibility')
+createConnections(ikRootJoint, '.visibility', globalControlBoxShape, '.ikRigVisibility')
+createConnections(rigRootJoint, '.visibility', globalControlBoxShape, '.targetRigVisibility')
 
 handControllsNull = cmds.group(empty = True, name = globalSideOfBody + '_HandJointRootNull')
 snapToObj(skinRootJoint, handControllsNull) 
