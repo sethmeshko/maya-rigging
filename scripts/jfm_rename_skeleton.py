@@ -39,7 +39,7 @@ def renameSkeleton(*args):
         else:
             for eachJoint in skeletonList:
                 dictionary = {str(prefixName) : "", 'Reference' : 'root', 'Hips' : 'pelvis', 'Spine' : 'spine_01', 'Spine1' : 'spine_02', 'Spine2' : 'spine_03',
-                'LeftShoulder' : 'clavicle_l', 'RightShoulder' : 'clavicle_r',  'LeftArm' : 'upperarm_l', 'RightArm' : 'upperarm_r', 'RightForeArm' : 'lowerarm_l',
+                'LeftShoulder' : 'clavicle_l', 'RightShoulder' : 'clavicle_r',  'LeftArm' : 'upperarm_l', 'RightArm' : 'upperarm_r', 'LeftForeArm' : 'lowerarm_l', 'RightForeArm' : 'lowerarm_r',
                 'LeftHand' : 'hand_l', 'RightHand' : 'hand_r',
                 'LeftIndex1' : 'index_01_l', 'LeftIndex2' : 'index_02_l', 'LeftIndex3' : 'index_03_l',
                 'RightIndex1' : 'index_01_r', 'RightIndex2' : 'index_02_r', 'RightIndex3' : 'index_03_r',
